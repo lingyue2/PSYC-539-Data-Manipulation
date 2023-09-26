@@ -1,0 +1,145 @@
+---
+title: "W_learning-recognition"
+author: "Gözem Turan"
+date: "10 5 2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(lme4) 
+library(car)
+library(tidyr)
+library(rstatix)
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+library(ez)
+library(sjPlot)
+
+```
+
+# Relationship between learning efficiency and SDT
+```{r}
+df_tra <- read.csv("L:/2_Research/2_Analysis_Folder/Wubbles//part1_RTout.csv")
+df_recog <- read.csv("L:/2_Research/2_Analysis_Folder/Wubbles//part3_RTout.csv")
+
+```
+
+## Preparations for training
+```{r}
+# to calculative individual values
+df_tra <- ddply(df_tra, .(participant), summarize, cummean = cummean(myownaccuracy))
+
+# to add trials
+df_tra <- within(df_tra, {
+    count <- ave(as.character(participant), participant, FUN = seq_along)
+})
+
+df_tra$count <- as.numeric(df_tra$count) # make it numeric
+```
+```{r}
+# select only the last 1/3
+df_tra <- df_tra[df_tra$count >= 64, ]
+
+df_cum <- aggregate(cummean ~ participant, mean, data = df_tra)
+```
+
+## Preparations for recognition
+```{r}
+df_recog <- df_recog[!df_recog$cases == "new", ] #bye new pictures
+
+```
+
+# MERGE Data
+```{r}
+
+test <- merge(x = df_recog, y = df_cum, by = c("participant"), all.y = TRUE)
+
+test$pe <- factor(test$PE_level, levels=c("low", "medium", "high")) #pe
+
+test$participant <- as.factor(test$participant) #participants
+
+test <- na.omit(test)
+
+# exclude participant 59
+test <- test[!test$participant == 59, ]
+
+```
+
+# Model: Learning efficiency to predict hit rates
+```{r}
+
+#m1 <- lm(corrAns ~ 1, data = test) # simple
+#summary(m1)
+
+#m2 <- lmer(corrAns~1+(1|participant), data = test) # only with random intercept
+#summary(m2)
+
+#anova(m2, m1)
+
+#m3 <- lmer(corrAns ~ cummean + (1+cummean|participant), data = test) # random intercept and effect
+#summary(m3)
+#anova(m3,m2)
+
+m4 <- lmer(corrAns ~ cummean*pe + (1|participant), data = test) # interaction
+summary(m4)
+#anova(m4,m3)
+
+m5 <- lmer(corrAns ~ cummean*pe + (cummean*pe|participant), data = test) # interaction and a slope
+summary(m5)
+anova(m4,m5)
+Anova(m5)
+
+```
+
+# PLOT
+```{r}
+test$random.slope.int.preds <- predict(m5)
+
+ggplot(test, aes(x=cummean, y=random.slope.int.preds, group = pe, colour = pe)) +
+  geom_point() +
+  geom_smooth(method=lm, se = T)+
+  labs(x="Learning - Cumulative Accuracy", y="Prop Old") + 
+  scale_colour_discrete('pe') +
+  theme_classic()
+
+#tab_model(m4)
+```
+
+# only for high conf trials
+```{r}
+testC <- test[!test$conf > 2, ]
+
+```
+
+# Model: Learning efficiency to predict prop old by pe group
+```{r}
+
+m6 <- lmer(corrAns ~ cummean*pe + (1|participant), data = testC) # interaction
+summary(m6)
+
+m7 <- lmer(corrAns ~ cummean*pe + (cummean*pe|participant), data = testC) # interaction and a slope
+summary(m7)
+anova(m6, m7)
+Anova(m7)
+
+```
+
+# PLOT
+```{r}
+testC$random.slope.int.preds <- predict(m6)
+
+ggplot(testC, aes(x=cummean, y=random.slope.int.preds, group = pe, colour = pe)) +
+  geom_point() +
+  geom_smooth(method=lm, se = T)+
+  labs(x="Learning - Cumulative Accuracy", y="Prop Old") + 
+  scale_colour_discrete('pe') +
+  theme_classic()
+
+#tab_model(m6)
+
+```

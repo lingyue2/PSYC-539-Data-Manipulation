@@ -1,0 +1,104 @@
+---
+title: "M_lmm"
+author: "Gözem Turan"
+date: "24 5 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(ggpubr)
+library(rstatix)
+library(lme4)
+library(lmerTest)
+library(dplyr)
+
+```
+
+# Models for recognition, prop old responses -hits
+
+```{r}
+data <- read.csv("L:/2_Research/2_Analysis_Folder/Wubbles//part3_RTout.csv")
+
+```
+
+# preparations
+```{r}
+data <- data[!data$PE_level == "new", ] #bye new pictures
+
+data$pe <- factor(data$PE_level, levels=c("low", "medium", "high")) #pe
+
+data$participant <- as.factor(data$participant) #participants
+
+data$conf <- factor(data$conf, levels=c("1", "2", "3", "4"))
+
+data <- na.omit(data)
+
+```
+
+# First model
+```{r}
+# random intercepts and random slopes for PE, for each level of participant
+m1 <- glmer(corrAns ~ pe + (pe | participant), data = data, family = binomial, 
+                 control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+summary(m1)
+
+Anova(m1)
+
+```
+
+
+Adding confidence to the model
+```{r warning=FALSE, message=FALSE}
+
+m2 <- glmer(corrAns ~ pe * conf + (pe * conf | participant), data = data, family = binomial, 
+                    control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+summary(m2)
+```
+
+# compare models
+```{r warning=FALSE, message=FALSE}
+anova(m1,m2)
+
+```
+
+# Since we have a significant decrease in model fit
+# we accept model with confidence and it with "Anova" (capital A)
+
+```{r warning=FALSE, message=FALSE}
+Anova(m2)
+
+summary(m2)
+
+```
+
+
+# Correct Scene
+```{r warning=FALSE, message=FALSE}
+
+# random intercepts and random slopes for PE, for each level of participant
+s1 <- glmer(corrAns_scene ~ pe + (pe | participant), data = data, family = binomial, 
+                 control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+summary(s1)
+Anova(s1)
+```
+
+# Correct Location
+```{r warning=FALSE, message=FALSE}
+
+# random intercepts and random slopes for PE, for each level of participant
+l1 <- glmer(corrAns_corner ~ pe + (pe | participant), data = data, family = binomial, 
+                 control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000)))
+
+summary(l1)
+Anova(l1)
+```
+
+
+

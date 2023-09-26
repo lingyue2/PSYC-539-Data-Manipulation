@@ -1,0 +1,126 @@
+---
+title: "Learning Plots"
+author: "Gözem Turan"
+date: "29 6 2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(lme4) 
+library(car)
+library(tidyr)
+library(Rmisc)
+library(rstatix)
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+library(ez)
+library(psycho)
+library(sjPlot)
+library(PupillometryR)
+library(MetBrewer)
+
+```
+
+# Open data seperately
+```{r}
+
+dfM <- read.csv("L:/2_Research/2_Analysis_Folder/MemVio//part1_RTout.csv")
+
+dfW <- read.csv("L:/2_Research/2_Analysis_Folder/Wubbles//part1_RTout.csv")
+
+```
+
+# preparations for dfM
+```{r}
+dfM <- dfM[dfM$pe == "lowPE", ] # to have only low PE trials
+
+dfM$participant <- as.factor(dfM$participant) #participants
+
+dfM <- na.omit(dfM)
+
+```
+
+# calculate Cumm Accuracy
+```{r}
+dfMA <- ddply(dfM, .(participant), summarize, cummean = cummean(corrAns))
+
+# to add trials
+dfMA <- within(dfMA, {
+    trial <- ave(as.character(participant), participant, FUN = seq_along)
+})
+
+dfMA$trial <- as.numeric(dfMA$trial) # make it numeric
+
+dfMA$study <- c("Experiment 1") # add study info
+
+```
+
+# preparations for dfW
+```{r}
+
+dfW$corrAns <- dfW$myownaccuracy
+
+dfW$trial <- dfW$count
+
+dfW$participant <- as.factor(dfW$participant) # participants
+
+dfW <- na.omit(dfW)
+
+dfW$study <- c("Experiment 2")
+
+```
+
+# calculate Cumm Accuracy
+```{r}
+dfWA <- ddply(dfW, .(participant), summarize, cummean = cummean(corrAns))
+
+# to add trials
+dfWA <- within(dfWA, {
+    trial <- ave(as.character(participant), participant, FUN = seq_along)
+})
+
+dfWA$trial <- as.numeric(dfWA$trial) # make it numeric
+
+dfWA$study <- c("Experiment 2") # add study info
+
+
+```
+
+# Combine two data sets
+```{r}
+
+df <- bind_rows(dfMA, dfWA) 
+# just ignore the na values
+
+df$study <- as.factor(df$study)
+
+```
+
+## plot with individuals and group mean
+```{r}
+
+# mean
+gd <- aggregate(cummean ~ trial + study, mean, data = df)
+
+# plot
+ggplot(df, aes(x = trial, y = cummean)) +
+  # participants
+  geom_line(aes(group = participant), alpha = .1, size = .05) +
+  # group mean
+  geom_line(data = gd, color = "darkseagreen3", alpha = 5, size = 1.2) +
+  
+  # visual things
+  labs(x = "Trial", y = "Cumulated Accuracy") +
+  ylim(0,1) +
+  theme_classic() +
+  theme(text = element_text(family="TT Times New Roman",size = 15), legend.title = element_text(size = 1), legend.text = element_text(size = 12), legend.position = "None", legend.direction = "vertical") +
+  
+  #study
+  facet_wrap(.~ study, scales = "free")
+
+```

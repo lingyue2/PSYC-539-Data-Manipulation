@@ -1,0 +1,235 @@
+---
+title: "Recognition Plots"
+author: "Gözem Turan"
+date: "29 6 2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(lme4) 
+library(car)
+library(tidyr)
+library(Rmisc)
+library(rstatix)
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+library(ez)
+library(psycho)
+library(sjPlot)
+library(PupillometryR)
+library(MetBrewer)
+
+```
+
+# Open data seperately
+```{r}
+
+dfM <- read.csv("L:/2_Research/2_Analysis_Folder/MemVio//part3_RTout.csv")
+
+dfW <- read.csv("L:/2_Research/2_Analysis_Folder/Wubbles//part3_RTout.csv")
+
+```
+
+Preparations for dfM
+```{r}
+
+dfM$pe <- factor(dfM$pe, levels=c("lowPE", "medPE", "highPE")) # pe
+
+dfM$participant <- as.factor(dfM$participant) # participants
+
+dfM$conf <- factor(dfM$conf, levels=c("1", "2", "3", "4")) # confidence
+
+dfM <- na.omit(dfM)
+
+dfM$study <- c("Experiment 1")
+
+```
+
+# preparations for dfW
+```{r}
+
+# change the naming for PE levels to be consistend
+dfW <- dfW %>%
+    mutate(PE_level = recode(PE_level, low = 'lowPE', medium = 'medPE', high =  'highPE' ))
+
+dfW$pe <- factor(dfW$PE_level, levels=c("lowPE", "medPE", "highPE")) # pe
+
+dfW$participant <- as.factor(dfW$participant) # participants
+
+dfW$conf <- factor(dfW$conf, levels=c("1", "2", "3", "4")) # confidence
+
+dfW <- na.omit(dfW)
+
+dfW$study <- c("Experiment 2")
+
+```
+
+# Combine two data sets
+```{r}
+
+df <- bind_rows(dfM, dfW) 
+# just ignore the na values
+
+df$study <- as.factor(df$study)
+
+```
+
+# Aggregated data
+```{r}
+
+df1 <- summarySE(df, measurevar = "corrAns", groupvars=c("pe","study"), na.rm = TRUE)
+
+df11 <- summarySE(df, measurevar="corrAns", 
+                     groupvars=c("pe", "participant", "study"), na.rm=TRUE)
+```
+
+# First plot - Rainyclouds
+```{r}
+ggplot(df11, aes(x = pe, y = corrAns, fill = pe)) +
+  
+  # distrubition
+  geom_flat_violin(position = position_nudge(x = .1, y = 0), adjust = 1.5, trim = TRUE, color = "white") +
+  # individual data points
+  geom_point(aes(x = as.numeric(pe)-.15, y = corrAns),position = position_jitter(width = .05, height = 0), size = 1, shape = 20) +
+  # box plot
+  #geom_boxplot(aes(x = pe, y = corrAns),outlier.shape = NA, width = .1, colour = "black") +
+  # instead of box plots, error bars
+  geom_errorbar(data = df1, aes(ymin = corrAns - se, ymax = corrAns + se, width=0.1)) +
+  geom_point(data=df1, size=1) +
+  # group mean line
+  geom_line(data=df1, aes(x=pe, y=corrAns), size=0.5, group=1) +
+  
+  # visual things
+  theme_classic()+
+  scale_fill_manual(values=met.brewer("Derain", 5, type="continuous"))+
+  scale_color_manual(values=met.brewer("Derain", 5, type="continuous"))+
+  scale_x_discrete(name = "PE Level", labels=c("lowPE" = "Low", "medPE" = "Medium", "highPE" = "High")) +
+  theme(text = element_text(family="TT Times New Roman",size = 15), legend.title = element_text(size = 1), legend.text = element_text(size = 12), legend.position = "None", legend.direction = "vertical") +
+  ylab("Hit Responses") +
+  ylim(0, 1) +
+  
+  # significance
+  #geom_signif(comparisons = list(c("lowPE", "highPE")), map_signif_level=TRUE, y_position = c(1.1, 1.2, 1.3)) +
+  
+  # studies
+  facet_wrap(.~ study)
+
+```
+
+# Second plot - spaghetti & box & distribution
+```{r}
+
+rain_height <- .1
+
+ggplot(df11, aes(x = 1, y = corrAns, fill = pe)) +
+  
+  # clouds
+  geom_flat_violin(trim= TRUE, position = position_nudge(x = 2.3), alpha = .9, color = "black") +
+  # rain
+  geom_point(aes(x = factor(pe), y = corrAns, fill = factor(pe)), size = 2.5, shape = 21) +
+  # spaghetti
+  geom_line(aes(x = factor(pe), y = corrAns, group = participant)) +
+  #box
+  geom_boxplot(width = .1, show.legend = FALSE, 
+               outlier.shape = NA, alpha = .9,
+               position = position_nudge(x = 2.2)) +
+  # group mean
+  #geom_line(data=df1, aes(x=pe, y=corrAns), size=1.4, group=1, color = "pink") +
+  
+  # visual things
+  scale_fill_manual(values=met.brewer("Derain", 5, type="continuous")) +
+  theme_classic() +
+  scale_x_discrete(name = "PE Level", labels=c("lowPE" = "Low", "medPE" = "Medium", "highPE" = "High")) + 
+  theme(text = element_text(family="TT Times New Roman",size = 15), legend.title = element_text(size = 1), legend.text = element_text(size = 12), legend.position = "None", legend.direction = "vertical") +
+  ylab("Hit Responses") +
+  ylim(0, 1) +
+  
+  # significance
+  #geom_signif(comparisons = list(c("low", "dprimeMed"), c("dprimeLow", "dprimeHigh"), c("dprimeMed", "dprimeHigh")), map_signif_level=TRUE) +
+  
+  # studies
+  facet_wrap(.~ study)
+
+```
+
+
+# Third plot - violin
+```{r}
+
+ggplot(df11, aes(x=pe, y=corrAns, fill=pe)) + 
+  geom_violin(color="white", trim = TRUE) +
+  
+  # subject lines
+  geom_jitter(aes(x=pe, y=corrAns, group=participant, alpha=0.5), color = "gray50", size = 0.5, position=position_dodge(0)) + 
+  geom_line(aes(x=pe, y=corrAns, group=participant, alpha=0.5), color = "gray50", position=position_dodge(0)) +
+  
+  # group mean
+  geom_point(data=df1, size=1) + 
+  # error bar
+  geom_errorbar(data = df1, aes(ymin = corrAns - se, ymax = corrAns + se, width=0.1)) +
+  geom_line(data=df1, aes(x=pe, y=corrAns), size=0.9, group=1) +
+  
+  # visual things
+  scale_x_discrete(name = "PE Level", labels=c("lowPE" = "Low", "medPE" = "Medium", "highPE" = "High")) +
+  scale_fill_manual(values=met.brewer("Derain", 5, type="continuous")) + 
+  theme_classic() +
+  theme(text = element_text(family="TT Times New Roman",size = 15), legend.title = element_text(size = 1), legend.text = element_text(size = 12), legend.position = "None", legend.direction = "vertical") +
+  ylab("Hit Responses") +
+  #ylim(0, 1) +
+  
+  # significance
+  geom_signif(comparisons = list(c("highPE", "lowPE")), map_signif_level=FALSE) +
+  
+  # studies
+  facet_wrap(.~ study)
+  
+```
+
+
+# CONFINDENCE 
+```{r}
+
+df2 <- summarySE(df, measurevar = "corrAns", groupvars=c("pe","study", "conf"), na.rm = TRUE)
+
+
+df22 <- summarySE(df, measurevar="corrAns", 
+                     groupvars=c("pe", "participant", "conf", "study"), na.rm=TRUE)
+
+```
+
+PLOT
+```{r}
+
+ggplot(df22, aes(x=pe, y=corrAns, fill=pe)) + 
+  geom_violin(color="white", trim = TRUE) +
+  
+  # subject lines
+  geom_jitter(aes(x=pe, y=corrAns, group=participant, alpha=0.5), color = "gray50", size = 0.5, position=position_dodge(0)) + 
+  geom_line(aes(x=pe, y=corrAns, group=participant, alpha=0.5), color = "gray50", position=position_dodge(0)) +
+  
+  # group mean
+  geom_point(data=df2, size=1) + 
+  # error bar
+  geom_errorbar(data = df2, aes(ymin = corrAns - se, ymax = corrAns + se, width=0.1)) +
+  geom_line(data=df2, aes(x=pe, y=corrAns), size=0.9, group=1) +
+  
+  # visual things
+  scale_x_discrete(name = "PE Level", labels=c("lowPE" = "Low", "medPE" = "Medium", "highPE" = "High")) +
+  scale_fill_manual(values=met.brewer("Derain", 5, type="continuous")) + 
+  theme_classic() +
+  theme(text = element_text(family="TT Times New Roman",size = 15), legend.title = element_text(size = 1), legend.text = element_text(size = 12), legend.position = "None", legend.direction = "vertical") +
+  ylab("Hit Responses") +
+  ylim(0, 1) +
+  
+  # significance
+  #geom_signif(comparisons = list(c("low", "dprimeMed"), c("dprimeLow", "dprimeHigh"), c("dprimeMed", "dprimeHigh")), map_signif_level=TRUE) +
+  
+  # studies
+  facet_grid(conf ~ study)
+  
+```
